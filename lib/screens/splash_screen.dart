@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Position animation - moves logo up
     _positionAnimation = Tween<Offset>(
-      begin: const Offset(0, 0),
+      begin: const Offset(0, 2),
       end: const Offset(0, -0.69), // Reduced movement to better match login position
     ).animate(CurvedAnimation(
       parent: _animationController,
@@ -55,7 +55,7 @@ class _SplashScreenState extends State<SplashScreen>
     // Fade animation for text and loading indicator
     _fadeAnimation = Tween<double>(
       begin: 0.5,
-      end: 0.0,
+      end: 2,
     ).animate(CurvedAnimation(
       parent: _fadeController,
       curve: Curves.easeOut,
@@ -73,40 +73,42 @@ class _SplashScreenState extends State<SplashScreen>
     _initializeAuth();
   }
 
-  Future<void> _initializeAuth() async {
-    // Wait for initial splash display
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Start fade out animation for text and loading
-    _fadeController.forward();
-    
-    // Wait a bit then start the main transition
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    // Start the main animation
-    _animationController.forward();
-    
-    // Wait for animation to complete
-    await _animationController.forward();
-    
-    // Check authentication and navigate
-    await _checkAuthAndNavigate();
+  // In lib/screens/splash_screen.dart
+
+Future<void> _initializeAuth() async {
+  await Future.delayed(const Duration(seconds: 2));
+  if (!mounted) return;
+
+  _fadeController.forward();
+
+  await Future.delayed(const Duration(milliseconds: 300));
+  if (!mounted) return;
+
+  try {
+    await _animationController.forward().orCancel;
+  } on TickerCanceled {
+    return;
   }
 
-  Future<void> _checkAuthAndNavigate() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (!mounted) return;
-    
-    if (session != null) {
-      // User is authenticated, navigate to home
-      Navigator.of(context).pushReplacementNamed('/home');
-    } else {
-      // Navigate to login with instant replacement
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    }
+  if (!mounted) return;
+  await _checkAuthAndNavigate();
+}
+// Your _checkAuthAndNavigate function is likely fine, but ensure it also has a mounted check.
+Future<void> _checkAuthAndNavigate() async {
+  if (!mounted) return; // Good practice to have this here too
+
+  final session = Supabase.instance.client.auth.currentSession;
+
+  if (!mounted) return; // Check again after the async call to Supabase
+
+  if (session != null) {
+    Navigator.of(context).pushReplacementNamed('/home');
+  } else {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
   }
+}
 
   @override
   void dispose() {

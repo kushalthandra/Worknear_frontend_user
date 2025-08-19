@@ -37,13 +37,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
       try {
         final AuthResponse res = await Supabase.instance.client.auth.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          data: {
-            'username': _usernameController.text.trim(),
-            'phone': _phoneController.text.trim(),
-          },
-        );
+  email: _emailController.text.trim(),
+  password: _passwordController.text,
+  data: {
+    'username': _usernameController.text.trim(),
+    'phone': _phoneController.text.trim(),
+  },
+);
 
         final user = res.user;
         if (user != null) {
