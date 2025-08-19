@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home.dart'; // Update this path if needed
+import 'home.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
+import '../services/api_service.dart'; // Ensure this path is correct
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +26,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     
-    // Animation for sliding in the form elements
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -39,7 +39,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       curve: Curves.easeOut,
     ));
     
-    // Start the slide animation after a brief delay
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
         _slideController.forward();
@@ -55,55 +54,88 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-  Future<void> _login() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
+  // In _LoginScreenState class
+Future<void> _login() async {
+  if (_formKey.currentState?.validate() ?? false) {
+    setState(() => _isLoading = true);
 
-      try {
-        final AuthResponse res = await Supabase.instance.client.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-        final user = res.user;
+    try {
+      final AuthResponse res = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      final user = res.user;
 
-        if (user != null && user.emailConfirmedAt != null) {
-          final session = Supabase.instance.client.auth.currentSession;
-          final jwt = session?.accessToken;
-          print('JWT: $jwt');
+      if (user != null) {
+        final session = Supabase.instance.client.auth.currentSession;
+        final jwt = session?.accessToken;
+        print(jwt);
+        // --- ⬇️ MODIFIED API CALL SECTION ⬇️ ---
+        if (jwt != null) {
+          try {
+            print('Attempting to call the /get-user-profiles backend route...');
+            
+            // Call the new ApiService function
+            final response = await ApiService.getUserProfiles(jwt);
+
+            if (mounted) {
+              if (response.statusCode == 200) {
+                // If successful, print the list of users to the console
+                print('✅ Backend Response (User Profiles): ${response.body}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Successfully fetched user data!'), backgroundColor: Colors.green),
+                );
+              } else {
+                // Handle backend errors
+                print('❌ Backend Error: ${response.statusCode} ${response.body}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Backend connection failed: ${response.statusCode}')),
+                );
+              }
+            }
+          } catch (e) {
+            // Handle network or other exceptions
+            print('❌ Exception calling backend: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error connecting to backend: $e')),
+              );
+            }
+          }
+        }
+        // --- ⬆️ END OF MODIFIED SECTION ⬆️ ---
+
+        if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomePage()),
           );
-        } else if (user != null && user.emailConfirmedAt == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please verify your email before logging in.')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login failed. Please check your credentials.')),
-          );
         }
-      } on AuthException catch (e) {
-        if (e.message.toLowerCase().contains('invalid login credentials')) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateAccountScreen()),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message)),
-          );
-        }
-      } catch (e) {
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unexpected error: $e')),
+          const SnackBar(content: Text('Login failed. Please check your credentials.')),
         );
-      } finally {
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unexpected error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if(mounted) {
         setState(() => _isLoading = false);
       }
     }
   }
-
+}
+  
   void _navigateToCreateAccount() {
     Navigator.push(
       context,
@@ -123,7 +155,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             children: [
               const SizedBox(height: 80),
               
-              // Logo - matches splash screen final size and position
               Container(
                 width: 90,
                 height: 90,
@@ -156,7 +187,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               
               const SizedBox(height: 32),
               
-              // Animated form content
               SlideTransition(
                 position: _slideAnimation,
                 child: FadeTransition(
@@ -195,11 +225,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!value.contains('@')) {
-                                return 'Enter a valid email';
+                              if (value == null || value.isEmpty || !value.contains('@')) {
+                                return 'Please enter a valid email';
                               }
                               return null;
                             },
@@ -238,10 +265,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               ),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              if (value.length < 6) {
+                              if (value == null || value.isEmpty || value.length < 6) {
                                 return 'Password must be at least 6 characters';
                               }
                               return null;
@@ -249,7 +273,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                         ),
                         
-                        // Single Forgot Password Button (centered)
                         Align(
                           alignment: Alignment.center,
                           child: TextButton(
@@ -283,7 +306,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                             onPressed: _isLoading ? null : _login,
                             child: _isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
+                                ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                                  )
                                 : const Text(
                                     'Login',
                                     style: TextStyle(
